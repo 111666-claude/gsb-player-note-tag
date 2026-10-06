@@ -8,30 +8,38 @@ class Counter:
         self.scanned = 0
 
 
-def _find(view, player_id, counter):
-    for player in view["players"]:
-        counter.scanned += 1
-        if player["id"] == player_id:
-            return player
-    return None
-
-
 def replay(events, tag_cap, counter, order=True):
+    if order:
+        events = sorted(events, key=lambda event: event["ts"])
     view = {"players": [], "dropped": 0}
+    by_id = {}
     for event in events:
-        player = _find(view, event["player"], counter)
+        counter.scanned += 1
+        player = by_id.get(event["player"])
         if player is None:
-            player = {"id": event["player"], "name": event["player"], "note": "", "tags": []}
+            player = {"id": event["player"], "name": event["player"], "note": "",
+                      "tags": [], "tag_set": set()}
             view["players"].append(player)
+            by_id[player["id"]] = player
         kind = event["kind"]
         if kind == "rename":
             player["name"] = event["value"]
         elif kind == "note":
             player["note"] = event["value"]
         elif kind == "tag-add":
-            player["tags"].append(event["value"])
+            tag = event["value"]
+            if tag in player["tag_set"]:
+                continue
+            if len(player["tags"]) >= tag_cap:
+                view["dropped"] += 1
+                continue
+            player["tags"].append(tag)
+            player["tag_set"].add(tag)
         elif kind == "tag-remove":
-            pass
+            tag = event["value"]
+            if tag in player["tag_set"]:
+                player["tag_set"].remove(tag)
+                player["tags"].remove(tag)
     return view
 
 
