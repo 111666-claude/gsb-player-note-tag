@@ -8,30 +8,35 @@ class Counter:
         self.scanned = 0
 
 
-def _find(view, player_id, counter):
-    for player in view["players"]:
-        counter.scanned += 1
-        if player["id"] == player_id:
-            return player
-    return None
-
-
 def replay(events, tag_cap, counter, order=True):
     view = {"players": [], "dropped": 0}
-    for event in events:
-        player = _find(view, event["player"], counter)
+    index = {}
+    ordered = sorted(events, key=lambda event: event["ts"]) if order else events
+    for event in ordered:
+        counter.scanned += 1
+        player_id = event["player"]
+        player = index.get(player_id)
         if player is None:
-            player = {"id": event["player"], "name": event["player"], "note": "", "tags": []}
+            player = {"id": player_id, "name": player_id, "note": "", "tags": []}
             view["players"].append(player)
+            index[player_id] = player
         kind = event["kind"]
         if kind == "rename":
             player["name"] = event["value"]
         elif kind == "note":
             player["note"] = event["value"]
         elif kind == "tag-add":
-            player["tags"].append(event["value"])
+            tag = event["value"]
+            if tag in player["tags"]:
+                continue
+            if len(player["tags"]) >= tag_cap:
+                view["dropped"] += 1
+                continue
+            player["tags"].append(tag)
         elif kind == "tag-remove":
-            pass
+            tag = event["value"]
+            if tag in player["tags"]:
+                player["tags"].remove(tag)
     return view
 
 
